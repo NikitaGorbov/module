@@ -1,11 +1,5 @@
-#include <linux/init.h>
-#include <linux/limits.h>
 #include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/kernel.h>
-#include <linux/fs.h>
-#include <linux/slab.h>
-#include <asm/uaccess.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nikita Gorbov <nikita.gorbov.2001@gmail.com>");
