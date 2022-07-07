@@ -1,21 +1,40 @@
-#include <linux/kobject.h>
-#include <linux/string.h>
-#include <linux/sysfs.h>
-#include <linux/module.h>
 #include <linux/init.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <linux/slab.h>
+#include <asm/uaccess.h>
+#include <linux/sysfs.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nikita Gorbov <nikita.gorbov.2001@gmail.com>");
 MODULE_VERSION("0.01");
 
+#define ARRAY_PARAM_SIZE 5
+
 static int my_sys;
-int read_count;
+static int a, b;
+static int c[ARRAY_PARAM_SIZE];
+module_param(b, int, 0660);
+module_param(a, int, 0660);
+module_param_array(c, int, NULL, 0660);
+
+static int array_sum (int *array, int n)
+{
+    int i, res = 0;
+
+    for (i = 0; i < n; i++) {
+        res += array[i];
+    }
+    return res;
+}
 
 static ssize_t attr_read(struct kobject *kobj, 
                       struct kobj_attribute *attr,
                      char *buf)
 {
-    return sprintf(buf, "%d\n", ++read_count);
+    return sprintf(buf, "%d\n", a + b + array_sum(c, ARRAY_PARAM_SIZE));
 }
 
 static struct kobj_attribute my_sys_attribute =
@@ -32,6 +51,7 @@ static struct attribute_group attr_group = {
 };
 
 static struct kobject *Driver_Module_kobj;
+
 
 static int __init solution_init(void)
 {
