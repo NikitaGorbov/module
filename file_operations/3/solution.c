@@ -18,7 +18,7 @@ static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 static int major_num = 240;
 
 static char kernel_buf[32];
-static int cur_open_count, overall_open_count;
+static int cur_open_count, overall_open_count, write_count;
 static struct file_operations file_ops = {
     .read = device_read,
     .write = device_write,
@@ -32,7 +32,7 @@ static ssize_t device_read(struct file *flip, char __user *buffer, size_t len, l
     /* Read from file only once */
     if (*offset > 0)
         return 0;
-    size = sprintf(kernel_buf, "%d %d\n", overall_open_count, 0);
+    size = sprintf(kernel_buf, "%d %d\n", overall_open_count, write_count);
     if (copy_to_user(buffer, kernel_buf, size))
         return -EFAULT;
     *offset += size;
@@ -42,8 +42,8 @@ static ssize_t device_read(struct file *flip, char __user *buffer, size_t len, l
 static ssize_t device_write(struct file *flip, const char *buffer, size_t len, loff_t *offset)
 {
     /* not yet implemented */
-    printk(KERN_INFO "write: %zu\n", len);
-    return -EINVAL;
+    write_count += len;
+    return len;
 }
 
 static int device_open(struct inode *inode, struct file *file)
