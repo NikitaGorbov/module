@@ -19,6 +19,11 @@ static ssize_t device_read(struct file *, char *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 static int major_num = 240;
 
+struct data {
+    char kbuf[KBUF_SIZE];
+    int end_position;
+};
+
 static struct file_operations file_ops = {
     .read = device_read,
     .write = device_write,
@@ -27,19 +32,10 @@ static struct file_operations file_ops = {
     .llseek = device_llseek
 };
 
-static int get_str_len(char *str)
-{
-    int i;
-
-    for (i = 0; str[i]; i++) {
-        ;
-    }
-    return i;
-}
-
 static loff_t device_llseek(struct file *file, loff_t offset, int orig)
 {
     loff_t testpos;
+    struct data *priv = file->private_data;
 
     printk(KERN_INFO "kernel_mooc LLSEEK offset=%lld", offset);
     switch (orig) {
@@ -50,8 +46,7 @@ static loff_t device_llseek(struct file *file, loff_t offset, int orig)
             testpos = file->f_pos + offset;
             break;
         case SEEK_END:
-            /* testpos = KBUF_SIZE + offset; */
-            testpos = get_str_len(file->private_data) + offset;
+            testpos = priv->end_position + offset;
             break;
         default:
             return -EINVAL;
@@ -64,39 +59,33 @@ static loff_t device_llseek(struct file *file, loff_t offset, int orig)
 
 static ssize_t device_read(struct file *flip, char __user *buffer, size_t len, loff_t *offset)
 {
-    char *kbuf;
+    // char *kbuf;
     int nbytes, mylen;
+    struct data *priv;
 
-    kbuf = flip->private_data;
-    printk(KERN_INFO "kernel_mooc READ offset=%lld, len=%d\n", *offset, len);
-    mylen = get_str_len(kbuf + *offset);
+    priv = flip->private_data;
+    mylen = priv->end_position - *offset;
     if (!mylen)
         return 0;
-    printk(KERN_INFO "kernel_mooc READ mylen=%d", mylen);
     if (len > mylen)
         len = mylen;
-    nbytes = len - copy_to_user(buffer, kbuf + *offset, len);
+    nbytes = len - copy_to_user(buffer, priv->kbuf + *offset, len);
     *offset += nbytes;
-    printk(KERN_INFO "kernel_mooc READ_END, read %d bytes", nbytes);
     return mylen;
 }
 
 static ssize_t device_write(struct file *flip, const char *buffer, size_t len, loff_t *offset)
 {
-    char *kbuf;
     int nbytes, str_len;
+    struct data *priv;
 
-    kbuf = flip->private_data;
-    str_len = get_str_len(kbuf);
-    nbytes = len - copy_from_user(kbuf + *offset, buffer, len);
+    priv = flip->private_data;
+    str_len = priv->end_position;
+    nbytes = len - copy_from_user(priv->kbuf + *offset, buffer, len);
     if (str_len < *offset + len) {
-        printk(KERN_INFO "kernel_mooc write NEW END\n");
         /* set new end of string */
-        *(kbuf + *offset + len) = '\0';
+        priv->end_position = *offset + len;
     }
-    printk(KERN_INFO "kernel_mooc write len: %d, offset: %d\n", len, *offset);
-    printk(KERN_INFO "kernel_mooc BUFFER: %s\n", kbuf);
-
     *offset += nbytes;
     return nbytes;
 }
@@ -104,28 +93,26 @@ static ssize_t device_write(struct file *flip, const char *buffer, size_t len, l
 static int device_open(struct inode *inode, struct file *file)
 {
     static int counter = 0;
-    char *kbuf;
+    struct data *priv = NULL;
 
-    kbuf = kmalloc(KBUF_SIZE, GFP_KERNEL);
-    if (!kbuf) {
+    priv = (struct data*)kmalloc(sizeof(struct data), GFP_KERNEL);
+    if (!priv) {
         return -ENOMEM;
     }
-    /* just in case */
-    kbuf[KBUF_SIZE-1] = '\0';
-    sprintf(kbuf, "%d", counter);
-    file->private_data = kbuf;
+    priv->end_position = sprintf(priv->kbuf, "%d", counter);
+    file->private_data = priv;
     counter++;
     return 0;
 }
 
 static int device_release(struct inode *inode, struct file *file)
 {
-    char *kbuf;
+    struct data *priv;
 
-    kbuf = file->private_data;
-    if (kbuf)
-        kfree(kbuf);
-    kbuf = NULL;
+    priv = file->private_data;
+    if (priv)
+        kfree(priv);
+    priv = NULL;
     file->private_data = NULL;
     return 0;
 }
